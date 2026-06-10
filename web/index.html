@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>つられないで！逆マジカルバナナ</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <div class="container">
+
+        <h1 align="center">つられないで！逆マジカルバナナ</h1>
+
+        <div id="turnDisplay" class="turn-display"></div>
+
+        <div id="timerDisplay" class="timer-display">10秒</div>
+
+        <div id="log"></div>
+
+        <input id="wordInput"
+               maxlength="10"
+               placeholder="単語を入力（10文字以内）">
+
+        <button onclick="sendWord()">
+            送信
+        </button>
+
+        <div id="dangerMeter">
+            <div id="dangerBar"></div>
+        </div>
+
+        <p id="similarityText"></p>
+
+        <p id="thresholdText">負け判定: 類似率50%以上</p>
+
+        <button onclick="resetGame()" id="resetBtn" style="display:none; margin-top: 10px; background: #666;">
+            新しいゲーム
+        </button>
+
+    </div>
+
+    <script src="script.js"></script>
+
+</body>
+</html>
