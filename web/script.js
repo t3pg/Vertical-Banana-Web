@@ -1,13 +1,66 @@
-const API_URL = "http://127.0.0.1:8000";
 const TIME_LIMIT = 10;
 const THRESHOLD = 0.50;
-
 let previousWord = "";
 let currentPlayer = 1;
 let gameActive = true;
 let timeRemaining = TIME_LIMIT;
 let timerInterval = null;
 let usedWords = [];
+
+let extractor = null;
+
+// 埋め込みパイプラインの初期化
+async function initializeExtractor() {
+    if (extractor === null) {
+        const { pipeline } = await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.0.1');
+        extractor = await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2');
+    }
+}
+
+// コサイン類似度の計算
+function cosineSimilarity(vecA, vecB) {
+    const dotProduct = vecA.reduce((sum, a, i) => sum + a * vecB[i], 0);
+    const magnitudeA = Math.sqrt(vecA.reduce((sum, a) => sum + a * a, 0));
+    const magnitudeB = Math.sqrt(vecB.reduce((sum, b) => sum + b * b, 0));
+    return dotProduct / (magnitudeA * magnitudeB);
+}
+
+// テキスト埋め込みを取得して類似度を計算
+async function calculateSimilarity(text1, text2) {
+    await initializeExtractor();
+    const [embedding1] = await extractor(text1, { pooling: 'mean', normalize: true });
+    const [embedding2] = await extractor(text2, { pooling: 'mean', normalize: true });
+    
+    const embArray1 = Array.from(embedding1.data);
+    const embArray2 = Array.from(embedding2.data);
+    
+    return cosineSimilarity(embArray1, embArray2);
+}
+
+// モデルをロード
+async function loadModel() {
+    const btn = document.getElementById("modelLoadBtn");
+    const input = document.getElementById("wordInput");
+    const sendBtn = document.querySelector("button[onclick='sendWord()']");
+    
+    btn.disabled = true;
+    btn.textContent = "ロード中...";
+    
+    try {
+        await initializeExtractor();
+        btn.style.display = "none";
+        input.disabled = false;
+        sendBtn.disabled = false;
+        input.focus();
+        addLog("モデルのロードが完了しました！ゲーム開始できます。");
+        console.log("[DEBUG] Model loaded successfully");
+    } catch (error) {
+        btn.disabled = false;
+        btn.textContent = "モデルをロード";
+        addLog(`エラー: モデルのロードに失敗しました - ${error.message}`);
+        console.error("[DEBUG] Model loading failed:", error);
+    }
+}
 
 async function sendWord() {
     const input = document.getElementById("wordInput");
@@ -72,27 +125,9 @@ async function sendWord() {
             return;
         }
         
-        const params = new URLSearchParams({
-            a: previousWord,
-            b: word
-        });
-        
-        const simRes = await fetch(
-            `${API_URL}/similarity?${params}`
-        );
-
-        console.log(`[DEBUG] API Response status: ${simRes.status}`);
-
-        if (!simRes.ok) {
-            addLog(`エラー: APIから応答がありません (${simRes.status})`);
-            console.error(`[DEBUG] API Error: ${simRes.status}`);
-            button.disabled = false;
-            startTimer();
-            return;
-        }
-
-        const simData = await simRes.json();
-        const similarity = simData.similarity;
+        // transformer.jsを使用して類似度を計算
+        console.log(`[DEBUG] Computing similarity with transformer.js for: "${previousWord}" vs "${word}"`);
+        const similarity = await calculateSimilarity(previousWord, word);
 
         console.log(`[DEBUG] Similarity: ${similarity}`);
 
@@ -131,6 +166,8 @@ async function sendWord() {
         startTimer();
     }
 }
+
+
 
 function startTimer() {
     timeRemaining = TIME_LIMIT;
@@ -240,6 +277,7 @@ function resetGame() {
     document.getElementById("wordInput").disabled = false;
     document.querySelector("button[onclick='sendWord()']").disabled = false;
     document.getElementById("resetBtn").style.display = "none";
+    document.getElementById("modelLoadBtn").style.display = "none";
     updateDanger(0);
     updateTurnDisplay();
     document.getElementById("similarityText").innerText = "危険度 0.0%";
@@ -248,9 +286,12 @@ function resetGame() {
 }
 
 window.addEventListener("load", function() {
+    // 初期状態: 入力フィールドとボタンを無効化
+    document.getElementById("wordInput").disabled = true;
+    document.querySelector("button[onclick='sendWord()']").disabled = true;
+    
     updateTurnDisplay();
     updateTimerDisplay();
-    document.getElementById("wordInput").focus();
     
     document.getElementById("wordInput").addEventListener("keypress", function(e) {
         if(e.key === "Enter") {
